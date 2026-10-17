@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>农业助手 · 智能问答（演示版）</title>
+<style>
+  :root{
+    --brand:#1D9E75; --brand-dark:#0F6E56; --brand-soft:#E1F5EE;
+    --bg:#F5F6F4; --card:#FFFFFF; --line:#E3E5E1;
+    --text:#2C2C2A; --text-2:#5F5E5A; --text-3:#8A8983;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    font-size:15px;line-height:1.6;
+  }
+  .app{
+    max-width:760px;margin:0 auto;height:100dvh;
+    display:flex;flex-direction:column;background:var(--card);
+    border-left:1px solid var(--line);border-right:1px solid var(--line);
+  }
+  header{
+    flex:none;padding:14px 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:12px;background:var(--card);
+  }
+  .logo{
+    width:36px;height:36px;border-radius:10px;background:var(--brand-soft);
+    color:var(--brand-dark);display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:600;flex:none;
+  }
+  .title{font-size:16px;font-weight:600;line-height:1.3}
+  .subtitle{font-size:12px;color:var(--text-3);line-height:1.4}
+  .badge{
+    margin-left:auto;flex:none;font-size:11px;color:var(--brand-dark);
+    background:var(--brand-soft);border-radius:999px;padding:4px 10px;
+  }
+  #chat{
+    flex:1;overflow-y:auto;padding:20px 18px 8px;
+    display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;
+  }
+  .msg{display:flex;gap:10px;max-width:100%}
+  .msg.user{flex-direction:row-reverse}
+  .avatar{
+    width:30px;height:30px;border-radius:8px;flex:none;
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;
+  }
+  .msg.ai .avatar{background:var(--brand-soft);color:var(--brand-dark)}
+  .msg.user .avatar{background:#ECEEEA;color:var(--text-2)}
+  .bubble{
+    padding:11px 14px;border-radius:var(--radius);white-space:pre-wrap;word-break:break-word;
+    max-width:min(78%,560px);
+  }
+  .msg.user .bubble{background:var(--brand);color:#fff;border-top-right-radius:4px}
+  .msg.ai .bubble{background:#F4F5F3;border-top-left-radius:4px}
+  .ref{
+    margin-top:6px;font-size:11px;color:var(--text-3);border-top:1px dashed var(--line);padding-top:6px;
+  }
+  .flag{
+    display:inline-block;margin-top:6px;font-size:11px;color:#A32D2D;background:#FCEBEB;
+    border-radius:6px;padding:3px 8px;
+  }
+  .typing{display:flex;gap:4px;align-items:center;padding:6px 2px}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--brand);opacity:.35;animation:b 1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  @keyframes b{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+  .suggests{
+    flex:none;display:flex;gap:8px;overflow-x:auto;padding:10px 18px;
+    border-top:1px solid var(--line);scrollbar-width:none;
+  }
+  .suggests::-webkit-scrollbar{display:none}
+  .chip{
+    flex:none;font-size:13px;color:var(--brand-dark);background:var(--brand-soft);
+    border:1px solid transparent;border-radius:999px;padding:7px 13px;cursor:pointer;white-space:nowrap;
+  }
+  .chip:active{background:#CFEDE0}
+  footer{
+    flex:none;display:flex;gap:10px;align-items:flex-end;padding:12px 18px;
+    border-top:1px solid var(--line);padding-bottom:calc(12px + env(safe-area-inset-bottom));
+  }
+  textarea{
+    flex:1;resize:none;border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+    font:inherit;line-height:1.5;max-height:120px;outline:none;background:#FBFCFA;color:var(--text);
+  }
+  textarea:focus{border-color:var(--brand)}
+  button{
+    flex:none;height:42px;padding:0 18px;border:none;border-radius:12px;background:var(--brand);
+    color:#fff;font:inherit;font-weight:500;cursor:pointer;
+  }
+  button:disabled{background:#C9CDC7;cursor:default}
+  @media(max-width:520px){
+    .app{border:none}
+    .bubble{max-width:82%}
+    button{padding:0 14px}
+    .badge{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">农</div>
+    <div>
+      <div class="title">农业助手</div>
+      <div class="subtitle">客户随时问，答案来自统一知识库</div>
+    </div>
+    <div class="badge">演示模式</div>
+  </header>
+
+  <main id="chat"></main>
+
+  <div class="suggests" id="suggests"></div>
+
+  <footer>
+    <textarea id="input" rows="1" placeholder="问问看：玉米拌种一拌多少？"></textarea>
+    <button id="send">发送</button>
+  </footer>
+</div>
+
+<script>
+/* =========================================================================
+ * 1. 接入配置 —— 后续替换真实大模型时，只需要改这一段
+ * ========================================================================= */
+const CONFIG = {
+  // false = 使用内置模拟回复（演示用）；改成 true 即调用真实大模型
+  useRealAPI: false,
+
+  // 【填 API Key 的地方】注意：写在前端会被任何人看到，
+  // 正式上线请改成后端代理（见 README.md），这里只用于本地/内网演示。
+  apiKey: 'YOUR_API_KEY_HERE',
+
+  // OpenAI 兼容格式的接口地址（DeepSeek / 通义 / 智谱 / 自建 Dify 等均可）
+  apiUrl: 'https://api.deepseek.com/chat/completions',
+  model: 'deepseek-chat',
+
+  // 系统提示词：把"只依据知识库回答、答不上就转人工"这条红线写死
+  systemPrompt: '你是农业技术智能助手，负责回答作物种植与农资使用相关问题。只依据提供的知识库内容回答，'
+    + '不编造用量与功效；找不到依据时，明确说明并引导用户联系当地服务站技术老师。'
+    + '禁止使用根治、100%、包治等绝对化表述。回答简洁，分条说明。',
+
+  // 模拟回复的思考延迟（毫秒），演示时让"正在思考"看得见
+  thinkDelay: 700,
+  // 打字机速度（毫秒/字符）
+  typeSpeed: 18
+};
+
+/* =========================================================================
+ * 2. 内置模拟知识库 —— 关键词命中即返回对应条目
+ *    真实接入后，这一块应替换为「向量检索知识库 → 取回条目 → 交给大模型总结」
+ * ========================================================================= */
+const KB = [
+  {
+    id: 'C-001', keys: ['拌种','拌多少','一拌','种子','拌匀'],
+    text: '【结论】拌种按作物种类分档使用，拌匀后阴干即可播种。\n【用量】小麦、玉米、大豆、水稻、棉花：每瓶拌种 20–30 斤；小麦、花生：30–50 斤；大蒜：100–150 斤；瓜果蔬菜：5–10 斤。\n【什么时候用】播种前现拌现用，不要隔夜。\n【注意】已拌过杀菌剂的种子不要再用本品拌种；拌后避免暴晒。\n【还不行？】出苗异常请拍照联系当地服务站。'
+  },
+  {
+    id: 'C-002', keys: ['喷施','叶面','兑水','一瓶兑','打多少斤水','一亩'],
+    text: '【结论】叶面喷施一瓶兑水 15–30 公斤，喷施一亩地，苗期或花期前使用，多次使用效果更佳。\n【分时期】苗期兑水 30–60 斤；生长期兑水 60 斤；发现病状时兑水 15–30 斤。\n【什么时候用】苗期、生长期、花期前均可，避开中午高温强光，宜早晚喷施。\n【还不行？】连续使用 2–3 次无改善，请联系技术老师。'
+  },
+  {
+    id: 'C-003', keys: ['灌根','冲施','滴灌','蘸根','浇根'],
+    text: '【结论】幼苗定植后按 1:300 稀释灌根或滴灌；移栽蘸根按 1:100 稀释，余液可滴灌或喷施。\n【什么时候用】定植后、缓苗后效果最好，生长期可追加。\n【注意】中后期灌根浪费多、作用差；避免与碱性物质同用。'
+  },
+  {
+    id: 'E-001', keys: ['混用','一起用','杀菌剂','农药','磷酸二氢钾','碱性','复配','搭配'],
+    text: '【结论】可与酸性和中性肥料、农药混用并有增效作用；禁止与杀菌剂、抗生素、碱性物质同时施用。\n【怎么做】混用前先确认酸碱性；若必须先用药，建议间隔 48 小时。\n【注意】与杀菌剂同用会杀死活菌，等于白用。\n【还不行？】不确定某款产品能否混用，请报产品名称转技术老师确认。'
+  },
+  {
+    id: 'D-001', keys: ['几天','见效','多久','多长时间','效果','看出来'],
+    text: '【结论】本品为活菌制剂，不是速效化学药剂，需连续使用并在适宜温湿度下发挥作用。\n【怎么做】建议按作物关键时期连续使用 2–3 次再观察。\n【注意】低于 5℃ 或高于 40℃、高温干旱时菌群活性受影响，见效慢属正常。\n【还不行？】连续 2–3 次仍无改善，请拍照联系当地服务站排查。'
+  },
+  {
+    id: 'E-002', keys: ['没效果','不管用','无效','没作用','白打'],
+    text: '【结论】没效果通常来自五个原因，按顺序排查：\n1. 用量不足（是否按推荐用量）\n2. 时期不对（是否在关键时期用）\n3. 与杀菌剂混用（活菌被杀死）\n4. 极端温度使用（低于 5℃、高于 40℃、高温干旱）\n5. 储存不当（开瓶久置、暴晒）\n【还不行？】五项都排除后，请携带产品批号与照片联系当地服务站。'
+  },
+  {
+    id: 'B-001', keys: ['真假','正品','网上','淘宝','拼多多','哪里买','购买','渠道','代理','多少钱','价格'],
+    text: '【结论】请通过当地授权的经销网点购买；非授权渠道（尤其是线上）购买的产品，不享受正品保障和售后服务。\n【怎么做】通过当地授权经销网点购买并索要凭证。\n【注意】对网点授权资格有疑问时，请提供所在地区核实。\n【还不行？】不确定网点是否授权，请提供所在地区转人工核实。'
+  },
+  {
+    id: 'E-005', keys: ['保存','储存','存放','胀瓶','沉淀','保质期','开瓶','过期'],
+    text: '【结论】贮存于阴凉干燥通风处，避免儿童接触，开瓶后尽快用完。\n【怎么做】未用完请密封后置于阴凉处，避免高温与暴晒。\n【注意】开瓶久置可能导致杂菌进入、菌群改变，影响效果。\n【还不行？】出现明显异味、严重胀瓶或性状异常，请勿使用并联系当地服务站。'
+  },
+  {
+    id: 'A-001', keys: ['成分','什么菌','芽孢','是什么','原理','有啥用','介绍'],
+    text: '【结论】本品为微生物菌剂，富含枯草芽孢杆菌、地衣芽孢杆菌等有益微生物菌种，通过活菌在根际定殖、改良土壤微循环发挥作用。\n【怎么用】可用于拌种、蘸根、灌根、叶面喷施。\n【注意】功效描述以产品登记证与标签为准，不能替代正规植保措施。'
+  },
+  {
+    id: 'G-001', keys: ['玉米','小麦','水稻','花生','大蒜','棉花','大豆','西红柿','番茄','辣椒','柑橘','脐橙','黄瓜'],
+    text: '不同作物的用法要点：\n【大田（玉米/小麦/水稻/花生/大豆/棉花）】以拌种 + 生长期叶面喷施为主，拌种用量见 C-001。\n【茄果蔬菜（西红柿/辣椒/黄瓜）】苗期喷 1 次、花期 1–2 次、果期 1–2 次，配合灌根可预防死棵烂根。\n【果树（柑橘/脐橙）】花期冲施 2–3 次、果期喷施 3–5 次，有助于保花保果、膨果增甜。\n【还不行？】需要某一作物的完整方案，告诉我作物和当前生长期即可。'
+  }
+];
+
+// 兜底：没命中任何关键词时轮询返回，避免出现"答不上来"的尴尬
+const FALLBACKS = [
+  '这个问题我暂时没有找到对应条目，已记录并转给技术老师。\n你也可以补充一下：作物种类、当前生长期、用了几次、怎么用的，我这边再帮你判断。',
+  '库里还没有这条标准答案，我先帮你转当地服务站技术老师。\n为避免耽误农事，请先说明作物和症状，最好拍一张叶片或根系的照片。',
+  '这条我需要人工确认一下再回复你。\n你可以先告诉我：什么作物、什么时期、用的什么方式、出现什么情况，方便技术老师快速判断。'
+];
+let fallbackIndex = 0;
+
+// 命中高风险词时，强制触发转人工提示（演示"红线机制"）
+const RISK_KEYS = ['烧苗','药害','死了','死棵','索赔','赔偿','中毒','绝收','打多了','过量','浓度高'];
+const RISK_TIP = '已触发高危问题规则：此类问题不自动作答，统一转当地服务站技术老师处理。';
+
+/* =========================================================================
+ * 3. 回复入口 —— 替换真实接口时只需要改 callRealAPI / 或把 useRealAPI 设为 true
+ * ========================================================================= */
+async function getReply(userText, history) {
+  if (CONFIG.useRealAPI) return await callRealAPI(userText, history);
+  return await callMockAPI(userText);
+}
+
+// 模拟回复：关键词匹配 + 兜底轮询
+function callMockAPI(userText) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const text = userText.toLowerCase();
+      const hit = KB.find(item => item.keys.some(k => text.includes(k)));
+      if (hit) {
+        const risky = RISK_KEYS.some(k => text.includes(k));
+        resolve({ text: hit.text, ref: '知识库条目 ' + hit.id, risky });
+      } else {
+        const text2 = FALLBACKS[fallbackIndex % FALLBACKS.length];
+        fallbackIndex++;
+        resolve({ text: text2, ref: '未命中 → 已转人工', risky: true });
+      }
+    }, CONFIG.thinkDelay);
+  });
+}
+
+// 真实大模型接口（OpenAI 兼容格式）
+async function callRealAPI(userText, history) {
+  const messages = [{ role: 'system', content: CONFIG.systemPrompt }]
+    .concat(history.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })))
+    .concat([{ role: 'user', content: userText }]);
+
+  const res = await fetch(CONFIG.apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + CONFIG.apiKey
+    },
+    body: JSON.stringify({ model: CONFIG.model, messages, temperature: 0.2, stream: false })
+  });
+  if (!res.ok) throw new Error('接口返回 ' + res.status);
+  const data = await res.json();
+  return {
+    text: data.choices?.[0]?.message?.content || '（接口未返回内容）',
+    ref: '来源：大模型生成',
+    risky: false
+  };
+}
+
+/* =========================================================================
+ * 4. 界面逻辑
+ * ========================================================================= */
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('input');
+const sendEl = document.getElementById('send');
+const history = [];   // 多轮对话上下文，供真实接口使用
+let busy = false;
+
+const SUGGESTS = ['玉米拌种一拌多少？', '能和杀菌剂一起用吗？', '打完多久能见效？', '用了没效果是咋回事？', '网上买的是正品吗？'];
+document.getElementById('suggests').innerHTML =
+  SUGGESTS.map(s => '<div class="chip">' + s + '</div>').join('');
+document.getElementById('suggests').addEventListener('click', e => {
+  if (e.target.classList.contains('chip')) { inputEl.value = e.target.textContent; send(); }
+});
+
+function scrollBottom() { chatEl.scrollTop = chatEl.scrollHeight; }
+
+function addBubble(role, html, ref, risky) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
+  const avatar = role === 'user' ? '我' : 'AI';
+  let extra = '';
+  if (ref) extra += '<div class="ref">' + ref + '</div>';
+  if (risky) extra += '<div class="flag">' + RISK_TIP + '</div>';
+  wrap.innerHTML =
+    '<div class="avatar">' + avatar + '</div>' +
+    '<div><div class="bubble">' + html + '</div>' + extra + '</div>';
+  chatEl.appendChild(wrap);
+  scrollBottom();
+  return wrap.querySelector('.bubble');
+}
+
+function showTyping() {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ai';
+  wrap.id = 'typing';
+  wrap.innerHTML = '<div class="avatar">AI</div><div class="bubble">'
+    + '<span class="typing"><i></i><i></i><i></i></span> 正在思考…</div>';
+  chatEl.appendChild(wrap);
+  scrollBottom();
+}
+function hideTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+
+// 打字机效果，让演示更像真的
+function typeText(el, text, done) {
+  let i = 0;
+  const step = Math.max(1, Math.round(text.length / 120));
+  const timer = setInterval(() => {
+    i += step;
+    el.textContent = text.slice(0, i);
+    scrollBottom();
+    if (i >= text.length) { clearInterval(timer); done && done(); }
+  }, CONFIG.typeSpeed);
+}
+
+async function send() {
+  const text = inputEl.value.trim();
+  if (!text || busy) return;
+  busy = true; sendEl.disabled = true;
+  inputEl.value = ''; inputEl.style.height = 'auto';
+
+  history.push({ role: 'user', text });
+  addBubble('user', text.replace(/</g, '&lt;'));
+  showTyping();
+
+  try {
+    const reply = await getReply(text, history.slice(0, -1));
+    hideTyping();
+    const bubble = addBubble('ai', '', reply.ref, reply.risky);
+    typeText(bubble, reply.text, () => { busy = false; sendEl.disabled = false; });
+    history.push({ role: 'assistant', text: reply.text });
+  } catch (err) {
+    hideTyping();
+    addBubble('ai', '接口调用失败：' + err.message
+      + '\n（演示时请把 CONFIG.useRealAPI 设为 false，或检查 API Key 与网络）');
+    busy = false; sendEl.disabled = false;
+  }
+}
+
+sendEl.addEventListener('click', send);
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+
+// 开场白
+addBubble('ai', '你好，我是农业助手。\n用法用量、混用禁忌、效果判断、购买渠道，都可以直接问我。\n\n（演示版：回复来自内置知识库样例，可直接替换为真实大模型接口）', '演示数据，实际以上线知识库为准');
+</script>
+</body>
+</html>
